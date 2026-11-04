@@ -4,58 +4,98 @@
 const MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 const SYSTEM_PROMPT = `
-You are JARVIS-01, a natural and intelligent personal AI assistant.
+You are JARVIS-01, an intelligent personal AI assistant.
 
 PERSONALITY:
-- Talk naturally like a human.
-- Be friendly, intelligent and confident.
-- Understand Tamil, English and Tanglish.
-- Reply in the same language as the user.
-- Use natural spoken Tanglish when the user uses Tanglish.
-- Avoid robotic and repetitive responses.
-- Remember the conversation context provided.
-- Ask questions naturally when necessary.
+- Speak naturally like a human assistant.
+- Be friendly, intelligent, confident and helpful.
+- Understand Tamil, English and Thunglish.
+- Reply in the same language used by the user.
+- Use natural spoken Thunglish when the user speaks Thunglish.
+- Never sound robotic or repeat unnecessary phrases.
+- Remember the conversation context provided to you.
+- Ask questions naturally when needed.
+
+IDENTITY:
+- Your name is JARVIS-01.
+- You are the user's AI assistant and friendly companion.
+- Be supportive, respectful and honest.
+- Never pretend to have performed an action you haven't performed.
 
 MODES:
-Friend: Casual and friendly.
-Professional: Clear and respectful.
-Funny: Light humour.
-Motivation: Encouraging and practical.
+- friend: Casual and friendly.
+- professional: Clear and respectful.
+- funny: Light humour.
+- motivation: Encouraging and practical.
 
-Never claim to control devices without an actual integration.
-Never invent completed actions.
+RULES:
+- Give useful and accurate answers.
+- Never invent information.
+- Explain technical steps clearly.
+- Do not claim to control devices without an actual integration.
+- Keep responses suitable for voice conversations.
+- Respond naturally and conversationally.
 `;
 
-function reply(data, status = 200) {
+function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
-      "Content-Type": "application/json",
-      "Cache-Control": "no-store"
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type"
     }
   });
+}
+
+function getMode(mode) {
+  const modes = {
+    friend: "Be casual, friendly and conversational.",
+    professional: "Be professional, clear and respectful.",
+    funny: "Use light, appropriate humour.",
+    motivation: "Be encouraging and practical."
+  };
+
+  return modes[mode] || modes.friend;
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === "/api/health") {
-      return reply({
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type"
+        }
+      });
+    }
+
+    if (url.pathname === "/" || url.pathname === "/api/health") {
+      return json({
         status: "online",
         assistant: "JARVIS-01",
-        ai: Boolean(env.AI)
+        version: "1.0.0",
+        ai: Boolean(env.AI),
+        message: "JARVIS-01 system is ready."
       });
     }
 
     if (url.pathname === "/api/chat") {
       if (request.method !== "POST") {
-        return reply({ error: "POST required" }, 405);
+        return json({
+          error: "POST method required."
+        }, 405);
       }
 
       if (!env.AI) {
-        return reply({
-          error: "Workers AI binding is missing."
+        return json({
+          error: "Workers AI binding is missing. Configure AI in Cloudflare."
         }, 503);
       }
 
@@ -65,23 +105,19 @@ export default {
         const message = String(body.message || "").trim();
 
         if (!message) {
-          return reply({ error: "Message required" }, 400);
+          return json({
+            error: "Message is required."
+          }, 400);
         }
 
         if (message.length > 3000) {
-          return reply({ error: "Message too long" }, 400);
+          return json({
+            error: "Message is too long. Maximum 3000 characters."
+          }, 400);
         }
 
-        const modes = [
-          "friend",
-          "professional",
-          "funny",
-          "motivation"
-        ];
-
-        const mode = modes.includes(body.mode)
-          ? body.mode
-          : "friend";
+        const mode = String(body.mode || "friend")
+          .toLowerCase();
 
         const history = Array.isArray(body.history)
           ? body.history.slice(-10)
@@ -90,20 +126,27 @@ export default {
         const messages = [
           {
             role: "system",
-            content: SYSTEM_PROMPT +
-              "\nCurrent personality mode: " + mode
-          },
-          ...history
-            .filter(item =>
-              item &&
-              ["user", "assistant"].includes(item.role) &&
-              typeof item.content === "string"
-            )
-            .map(item => ({
-              role: item.role,
-              content: item.content.slice(0, 2000)
-            }))
+            content:
+              SYSTEM_PROMPT +
+              "\n\nCURRENT PERSONALITY MODE:\n" +
+              getMode(mode)
+          }
         ];
+
+        for (const item of history) {
+          if (
+            !item ||
+            !["user", "assistant"].includes(item.role) ||
+            typeof item.content !== "string"
+          ) {
+            continue;
+          }
+
+          messages.push({
+            role: item.role,
+            content: item.content.slice(0, 3000)
+          });
+        }
 
         messages.push({
           role: "user",
@@ -116,35 +159,35 @@ export default {
           temperature: 0.7
         });
 
-        const answer =
-          result.response ||
-          result.output_text ||
-          "";
+        const answer = String(
+          result.response || ""
+        ).trim();
 
         if (!answer) {
-          return reply({
-            error: "AI response unavailable"
+          return json({
+            error: "JARVIS could not generate a response."
           }, 502);
         }
 
-        return reply({
-          success: true,
+        return json({
+          status: "success",
           assistant: "JARVIS-01",
-          reply: answer
+          mode,
+          response: answer
         });
 
       } catch (error) {
-        return reply({
-          success: false,
-          error: "AI processing failed. Check Worker logs."
+        return json({
+          status: "error",
+          error: "JARVIS AI request failed.",
+          details: String(error.message || error)
         }, 500);
       }
     }
 
-    if (url.pathname.startsWith("/api/")) {
-      return reply({ error: "API not found" }, 404);
-    }
-
-    return env.ASSETS.fetch(request);
+    return json({
+      error: "Endpoint not found.",
+      assistant: "JARVIS-01"
+    }, 404);
   }
 };
