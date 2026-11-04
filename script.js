@@ -1,458 +1,332 @@
+const $ = (id) => document.getElementById(id);
 
-"use strict";
-
-const $ = id => document.getElementById(id);
-
-let mode = "friend";
-let locked = false;
-let recognition = null;
-let voices = [];
-let listeningEnabled = false;
-let awakeUntil = 0;
-let restartTimer = null;
-let memory = {};
-
-const WAKE_WORDS = [
-  "hey jarvis",
-  "hi jarvis",
-  "hello jarvis"
-];
-
-const modeNames = {
-  friend: "BEST FRIEND MODE",
-  professional: "PROFESSIONAL MODE",
-  funny: "FUNNY MODE",
-  motivation: "MOTIVATION MODE"
+const state = {
+  listening: false,
+  sleeping: false,
+  speaking: false,
+  busy: false,
+  emergency: false,
+  history: [],
+  recognition: null,
+  requestController: null
 };
 
-function addMessage(text, type) {
-  const el = document.createElement("div");
-  el.className = "message " + type;
-  el.textContent = text;
-  $("chat").appendChild(el);
-  $("chat").scrollTop = $("chat").scrollHeight;
+const synth = window.speechSynthesis;
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+let workerURL = localStorage.getItem("jarvis_worker_url") || "";
+
+function addMessage(role, message) {
+  const area = $("messages");
+  if (!area) return;
+
+  const div = document.createElement("div");
+  div.className = `message ${role}`;
+  div.textContent = message;
+  area.appendChild(div);
+  area.scrollTop = area.scrollHeight;
 }
 
-function speak(text) {
-  if (!("speechSynthesis" in window) || locked) return;
-
-  speechSynthesis.cancel();
-
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = $("language").value;
-  utterance.rate = Number($("rate").value);
-
-  const selected = $("voice").value;
-  const chosen = voices.find(v => v.name === selected);
-
-  if (chosen) utterance.voice = chosen;
-
-  speechSynthesis.speak(utterance);
+function setStatus(message) {
+  const el = $("status");
+  if (el) el.textContent = message;
 }
 
-function respond(text) {
-  addMessage("JARVIS: " + text, "jarvis");
-  speak(text);
+function stopSpeech() {
+  synth.cancel();
+  state.speaking = false;
 }
 
-function loadVoices() {
-  if (!("speechSynthesis" in window)) return;
+function speak(message) {
+  if (!message || state.emergency || state.sleeping) return;
 
-  voices = speechSynthesis.getVoices();
-  const select = $("voice");
-  const previous = select.value;
+  stopSpeech();
 
-  select.replaceChildren(
-    new Option("Automatic voice", "")
-  );
+  const utterance = new SpeechSynthesisUtterance(message);
+  const voices = synth.getVoices();
 
-  voices.forEach(voice => {
-    select.add(new Option(
-      voice.name + " (" + voice.lang + ")",
-      voice.name
-    ));
-  });
+  const preferred =
+    voices.find(v => /en-IN/i.test(v.lang)) ||
+    voices.find(v => /en-US/i.test(v.lang)) ||
+    voices.find(v => /en-GB/i.test(v.lang));
 
-  select.value = previous;
-}
+  if (preferred) utterance.voice = preferred;
 
-if ("speechSynthesis" in window) {
-  loadVoices();
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
+  utterance.rate = Number($("voiceSpeed")?.value || 0.95);
+  utterance.pitch = 1;
+  utterance.volume = 1;
 
-function setMode(nextMode) {
-  if (!modeNames[nextMode] || locked) return;
-
-  mode = nextMode;
-
-  document.querySelectorAll(".mode").forEach(button => {
-    button.classList.toggle(
-      "active",
-      button.dataset.mode === mode
-    );
-  });
-
-  $("modeLabel").textContent = modeNames[mode];
-
-  const replies = {
-    friend: "Best friend mode activated. Sollunga, enna matter?",
-    professional: "Professional mode activated. How may I assist you?",
-    funny: "Funny mode activated. Comedy department ready!",
-    motivation: "Motivation mode activated. Let's make progress!"
+  utterance.onstart = () => {
+    state.speaking = true;
+    setStatus("JARVIS speaking...");
   };
 
-  respond(replies[mode]);
+  utterance.onend = () => {
+    state.speaking = false;
+    setStatus(state.sleeping ? "Sleeping" : "Ready");
+  };
+
+  utterance.onerror = () => {
+    state.speaking = false;
+    setStatus("Voice unavailable");
+  };
+
+  synth.speak(utterance);
 }
 
-document.querySelectorAll(".mode").forEach(button => {
-  button.addEventListener("click", () => {
-    setMode(button.dataset.mode);
-  });
-});
+function stopJARVIS() {
+  stopSpeech();
 
-function getReply(text) {
-  const lower = text.toLowerCase();
-
-  if (/^(hi|hello|hey|hai)\b/.test(lower)) {
-    return "Hey! Sollunga. Enna plan innaiku?";
+  if (state.requestController) {
+    state.requestController.abort();
+    state.requestController = null;
   }
 
-  if (lower.includes("time")) {
-    return "The current time is " +
-      new Date().toLocaleTimeString();
-  }
-
-  if (lower.includes("date")) {
-    return "Today's date is " +
-      new Date().toLocaleDateString();
-  }
-
-  if (lower.includes("status")) {
-    return "JARVIS local voice interface is active. Cloud AI and device integrations are pending.";
-  }
-
-  if (lower.includes("your name")) {
-    return "I am JARVIS, your personal AI companion.";
-  }
-
-  if (lower.includes("joke")) {
-    return "Why did the computer go to the doctor? Because it had a virus!";
-  }
-
-  if (lower.includes("sad") || lower.includes("upset")) {
-    return "Enna aachu? Comfortable-ah irundha sollunga. Namma pesalam.";
-  }
-
-  if (lower.includes("thank")) {
-    return "You're welcome! Always ready to help.";
-  }
-
-  if (lower.includes("stop speaking")) {
-    speechSynthesis.cancel();
-    return "Okay. I have stopped speaking.";
-  }
-
-  if (mode === "funny") {
-    return "Naan ready! Innum oru command kudunga. Comedy mode active!";
-  }
-
-  if (mode === "motivation") {
-    return "Small steps daily. Consistency dhaan progress. Keep going!";
-  }
-
-  if (mode === "professional") {
-    return "Command received. General AI answers require the AI backend connection.";
-  }
-
-  return "Hmm, puriyudhu. Konjam detail-ah sollunga. Namma figure out pannalam.";
+  state.busy = false;
+  setStatus("Response stopped");
 }
 
-function activateOmega() {
-  if (locked) return;
-
-  locked = true;
-  listeningEnabled = false;
-  clearTimeout(restartTimer);
-
-  if (recognition) {
-    try {
-      recognition.stop();
-    } catch (e) {}
-  }
-
-  if ("speechSynthesis" in window) {
-    speechSynthesis.cancel();
-  }
-
-  $("voiceStatus").textContent = "OMEGA ZERO LOCKDOWN";
-  $("modeLabel").textContent = "SYSTEM LOCKED";
-
-  document.body.classList.add("locked");
-
-  document.querySelectorAll(
-    "button, input, select"
-  ).forEach(el => {
-    el.disabled = true;
-  });
-
-  addMessage(
-    "OMEGA ZERO: Local browser assistant locked. Listening stopped. External devices are not affected.",
-    "jarvis"
-  );
+function goToSleep() {
+  stopJARVIS();
+  state.sleeping = true;
+  setStatus("Sleeping — say Wake up JARVIS");
+  speak("Going to sleep.");
 }
 
-function processCommand(raw) {
-  const text = raw.trim();
-  if (!text || locked) return;
+function wakeJARVIS() {
+  state.sleeping = false;
+  state.emergency = false;
+  setStatus("JARVIS activated");
+  speak("I am online. How can I help you?");
+}
 
-  const lower = text.toLowerCase();
+function emergencyStop() {
+  state.emergency = true;
+  state.sleeping = true;
+  stopJARVIS();
 
-  if (
-    lower === "omega zero" ||
-    lower.includes("activate omega zero")
-  ) {
-    addMessage("YOU: " + text, "user");
-    activateOmega();
+  if (state.recognition) {
+    state.recognition.stop();
+  }
+
+  state.listening = false;
+  setStatus("Emergency stop activated");
+}
+
+function normalize(text) {
+  return text.toLowerCase().trim().replace(/[.,!?]/g, "");
+}
+
+function handleVoice(text) {
+  const command = normalize(text);
+
+  if (command.includes("stop jarvis")) {
+    stopJARVIS();
     return;
   }
 
-  addMessage("YOU: " + text, "user");
-
-  if (lower.includes("stop listening")) {
-    listeningEnabled = false;
-
-    if (recognition) {
-      recognition.stop();
-    }
-
-    $("voiceStatus").textContent =
-      "VOICE LISTENING STOPPED";
-
-    respond("Voice listening stopped. Enable hands-free again when you need me.");
+  if (command.includes("go to sleep")) {
+    goToSleep();
     return;
   }
 
-  if (lower.includes("stop speaking")) {
-    speechSynthesis.cancel();
-    respond("Okay. I stopped speaking.");
+  if (command.includes("wake up jarvis")) {
+    wakeJARVIS();
     return;
   }
 
-  if (lower.includes("best friend mode")) {
-    setMode("friend");
-    return;
-  }
-
-  if (lower.includes("professional mode")) {
-    setMode("professional");
-    return;
-  }
-
-  if (lower.includes("funny mode")) {
-    setMode("funny");
-    return;
-  }
-
-  if (lower.includes("motivation mode")) {
-    setMode("motivation");
-    return;
-  }
-
-  if (lower.includes("speak tamil")) {
-    $("language").value = "ta-IN";
-    respond("Tamil voice selected.");
-    return;
-  }
-
-  if (lower.includes("speak english")) {
-    $("language").value = "en-IN";
-    respond("English voice selected.");
-    return;
-  }
-
-  if (lower.includes("help")) {
-    respond("Ask me the time, date, or status. You can also change modes or stop listening.");
-    return;
-  }
-
-  if (lower.startsWith("remember that ")) {
-    const preference = text.slice(14).trim();
-
-    if (preference) {
-      memory.preference = preference;
-      $("memoryFeedback").textContent =
-        "Preference saved for this session.";
-      respond("Okay, I saved that preference for this session.");
+  if (state.sleeping || state.emergency) {
+    if (command.includes("hey jarvis")) {
+      wakeJARVIS();
     }
     return;
   }
 
-  respond(getReply(text));
-}
+  if (!state.listening) return;
 
-function handleVoiceText(transcript) {
-  if (locked) return;
+  if (command.includes("hey jarvis")) {
+    const request = command.replace("hey jarvis", "").trim();
 
-  const text = transcript.trim();
-  const lower = text.toLowerCase();
-
-  const wakeWord = WAKE_WORDS.find(word =>
-    lower.includes(word)
-  );
-
-  if (wakeWord) {
-    const index = lower.indexOf(wakeWord);
-    const remaining = text.slice(
-      index + wakeWord.length
-    ).trim();
-
-    awakeUntil = Date.now() + 20000;
-
-    $("voiceStatus").textContent = "JARVIS ACTIVATED";
-    $("reactor").classList.add("active");
-
-    if (remaining) {
-      processCommand(remaining);
+    if (request) {
+      sendMessage(request);
     } else {
-      respond("At your service. Sollunga!");
+      speak("Yes. I am listening.");
     }
 
     return;
   }
 
-  if (Date.now() < awakeUntil) {
-    awakeUntil = Date.now() + 20000;
-    processCommand(text);
-  }
+  if (state.busy || state.speaking) return;
+
+  sendMessage(text);
 }
 
 function startListening() {
-  if (locked || !recognition || !listeningEnabled) return;
+  if (!SpeechRecognition) {
+    setStatus("Speech recognition not supported. Try Chrome.");
+    return;
+  }
+
+  if (state.listening) return;
+
+  state.emergency = false;
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = $("language")?.value || "en-IN";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    state.listening = true;
+    setStatus("Listening — say Hey JARVIS");
+  };
+
+  recognition.onresult = (event) => {
+    const result = event.results[event.results.length - 1];
+    if (result.isFinal) handleVoice(result[0].transcript);
+  };
+
+  recognition.onerror = (event) => {
+    setStatus("Microphone: " + event.error);
+  };
+
+  recognition.onend = () => {
+    state.listening = false;
+
+    if (!state.emergency) {
+      setTimeout(() => {
+        if (!state.emergency) startListening();
+      }, 700);
+    }
+  };
+
+  state.recognition = recognition;
 
   try {
     recognition.start();
   } catch (error) {
-    // Recognition may already be running.
+    setStatus("Could not start microphone");
   }
 }
 
-function setupVoice() {
-  const SpeechRecognition =
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition;
+async function sendMessage(message) {
+  if (!message || state.busy) return;
 
-  if (!SpeechRecognition) {
-    $("voiceStatus").textContent =
-      "VOICE RECOGNITION NOT SUPPORTED";
-
-    $("voiceEngine").textContent =
-      "Not supported by this browser";
-
+  if (!workerURL) {
+    addMessage("jarvis", "Please connect your Cloudflare Worker first.");
     return;
   }
 
-  $("voiceEngine").textContent =
-    "Browser speech recognition available";
+  state.busy = true;
+  addMessage("user", message);
+  setStatus("Thinking...");
 
-  recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = false;
-  recognition.lang = $("language").value;
+  state.history.push({
+    role: "user",
+    content: message
+  });
 
-  recognition.onstart = () => {
-    $("voiceStatus").textContent =
-      "LISTENING FOR HEY JARVIS...";
+  state.requestController = new AbortController();
 
-    $("reactor").classList.add("active");
-  };
-
-  recognition.onresult = event => {
-    for (
-      let i = event.resultIndex;
-      i < event.results.length;
-      i++
-    ) {
-      if (event.results[i].isFinal) {
-        handleVoiceText(
-          event.results[i][0].transcript
-        );
+  try {
+    const response = await fetch(
+      workerURL.replace(/\/$/, "") + "/api/chat",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: state.history.slice(-12),
+          mode: $("mode")?.value || "friend"
+        }),
+        signal: state.requestController.signal
       }
+    );
+
+    if (!response.ok) {
+      throw new Error("Server error: " + response.status);
     }
-  };
 
-  recognition.onerror = event => {
-    $("voiceStatus").textContent =
-      "VOICE ERROR: " + event.error;
-  };
+    const data = await response.json();
 
-  recognition.onend = () => {
-    $("reactor").classList.remove("active");
+    const reply =
+      data.response ||
+      data.reply ||
+      data.result ||
+      "I could not generate a response.";
 
-    if (listeningEnabled && !locked) {
-      clearTimeout(restartTimer);
-      restartTimer = setTimeout(
-        startListening,
-        1000
-      );
-    } else if (!locked) {
-      $("voiceStatus").textContent =
-        "VOICE LISTENING STOPPED";
+    state.history.push({
+      role: "assistant",
+      content: reply
+    });
+
+    addMessage("jarvis", reply);
+
+    if ($("autoSpeak")?.checked !== false) {
+      speak(reply);
+    } else {
+      setStatus("Ready");
     }
-  };
+
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      addMessage("jarvis", "Connection issue. Please check your Worker URL.");
+      setStatus("Connection error");
+    }
+  } finally {
+    state.busy = false;
+    state.requestController = null;
+  }
 }
 
-setupVoice();
+async function connectWorker() {
+  const input = $("workerUrl");
+  const url = input?.value.trim();
 
-$("listen").addEventListener("click", async () => {
-  if (locked) return;
-
-  if (!recognition) {
-    respond("This browser does not support speech recognition. Please use a supported browser.");
+  if (!url || !url.startsWith("https://")) {
+    setStatus("Enter a valid HTTPS Worker URL");
     return;
   }
 
-  listeningEnabled = true;
-  recognition.lang = $("language").value;
+  workerURL = url.replace(/\/$/, "");
+  localStorage.setItem("jarvis_worker_url", workerURL);
 
-  startListening();
-});
+  try {
+    const response = await fetch(workerURL + "/api/health");
+    if (!response.ok) throw new Error();
 
-$("send").addEventListener("click", () => {
-  if (locked) return;
-
-  const text = $("command").value;
-  $("command").value = "";
-  processCommand(text);
-});
-
-$("command").addEventListener("keydown", event => {
-  if (event.key === "Enter") {
-    $("send").click();
+    setStatus("JARVIS connected successfully");
+    speak("System connection established.");
+  } catch {
+    setStatus("Could not connect. Check Worker URL.");
   }
-});
+}
 
-$("lockdown").addEventListener("click", () => {
-  if (!locked && confirm("Activate OMEGA ZERO lockdown?")) {
-    activateOmega();
-  }
-});
+function initialize() {
+  if ($("workerUrl")) $("workerUrl").value = workerURL;
 
-$("saveMemory").addEventListener("click", () => {
-  if (locked) return;
+  $("connectBtn")?.addEventListener("click", connectWorker);
+  $("startListening")?.addEventListener("click", startListening);
+  $("stopJarvis")?.addEventListener("click", stopJARVIS);
+  $("sleepJarvis")?.addEventListener("click", goToSleep);
+  $("wakeJarvis")?.addEventListener("click", wakeJARVIS);
+  $("emergencyStop")?.addEventListener("click", emergencyStop);
 
-  const value = $("memoryInput").value.trim();
+  $("sendBtn")?.addEventListener("click", () => {
+    const input = $("userInput");
+    if (input?.value.trim()) {
+      sendMessage(input.value.trim());
+      input.value = "";
+    }
+  });
 
-  if (!value) {
-    $("memoryFeedback").textContent =
-      "Enter a preference first.";
-    return;
-  }
+  $("userInput")?.addEventListener("keydown", event => {
+    if (event.key === "Enter") $("sendBtn")?.click();
+  });
 
-  memory.preference = value;
+  if (synth) synth.getVoices();
 
-  $("memoryFeedback").textContent =
-    "Preference saved for this session.";
+  setStatus("JARVIS ready. Connect your Worker.");
+}
 
-  $("memoryInput").value = "";
-});
+document.addEventListener("DOMContentLoaded", initialize);
