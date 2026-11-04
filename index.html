@@ -3,12 +3,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#050b16">
 <title>JARVIS | Personal AI</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
 <div class="app">
 
 <header class="topbar">
@@ -16,17 +17,18 @@
     <div class="logo">J</div>
     <div>
       <h2>J.A.R.V.I.S</h2>
-      <small>MULTI INTELLIGENCE AI</small>
+      <small>MULTI INTELLIGENCE SYSTEM</small>
     </div>
   </div>
-  <div class="online"><i></i> ONLINE</div>
+  <div class="online"><i></i> SYSTEM READY</div>
 </header>
 
 <main>
+
 <section class="hero">
-  <div class="eyebrow">PERSONAL AI COMPANION</div>
+  <div class="eyebrow">PERSONAL ARTIFICIAL INTELLIGENCE</div>
   <h1>HELLO, <span>COMMANDER.</span></h1>
-  <p>Your intelligent personal companion</p>
+  <p>Your personal voice-controlled AI companion</p>
 
   <div class="reactor" id="reactor">
     <div class="ring r1"></div>
@@ -35,54 +37,70 @@
     <div class="core">J</div>
   </div>
 
-  <div id="voiceStatus">AWAITING YOUR COMMAND</div>
-  <button id="listen" class="main-btn">🎙 TALK TO JARVIS</button>
+  <div id="voiceStatus">VOICE ENGINE STANDBY</div>
+  <button id="listen" class="main-btn">
+    ⚡ ENABLE HANDS-FREE JARVIS
+  </button>
+
+  <p class="hint">
+    Say "Hey JARVIS" after enabling the microphone
+  </p>
 </section>
 
 <section class="panel">
   <div class="heading">
-    <h3>CONVERSATION</h3>
+    <h3>LIVE CONVERSATION</h3>
     <span id="modeLabel">BEST FRIEND MODE</span>
   </div>
 
   <div class="chat" id="chat" aria-live="polite">
     <div class="message jarvis">
-      Hey! Naan JARVIS. Enna solla pora? 
-      Innaiku enna pannalam?
+      Hello! Naan JARVIS. At your service. Sollunga!
     </div>
   </div>
 
   <div class="input-row">
-    <input id="command" placeholder="Talk to your JARVIS...">
+    <input id="command"
+      placeholder="Type your command..."
+      autocomplete="off">
     <button id="send">➤</button>
   </div>
 </section>
 
-<section class="panel modes">
-  <h3>PERSONALITY MODES</h3>
+<section class="panel">
+  <h3>PERSONALITY ENGINE</h3>
+
   <div class="mode-grid">
-    <button data-mode="friend" class="mode active">❤️<br>BEST FRIEND</button>
-    <button data-mode="professional" class="mode">🧠<br>PROFESSIONAL</button>
-    <button data-mode="funny" class="mode">😂<br>FUNNY</button>
-    <button data-mode="motivation" class="mode">⚡<br>MOTIVATION</button>
+    <button data-mode="friend" class="mode active">
+      ❤️<br>BEST FRIEND
+    </button>
+    <button data-mode="professional" class="mode">
+      🧠<br>PROFESSIONAL
+    </button>
+    <button data-mode="funny" class="mode">
+      😂<br>FUNNY
+    </button>
+    <button data-mode="motivation" class="mode">
+      ⚡<br>MOTIVATION
+    </button>
   </div>
 </section>
 
 <section class="panel settings">
-  <h3>VOICE CUSTOMIZATION</h3>
+  <h3>VOICE CONFIGURATION</h3>
 
-  <label for="language">Language</label>
+  <label for="language">Speech recognition and response language</label>
   <select id="language">
     <option value="en-IN">English India</option>
     <option value="ta-IN">Tamil</option>
     <option value="en-US">English US</option>
   </select>
 
-  <label for="rate">Voice speed</label>
-  <input type="range" id="rate" min=".7" max="1.3"
-  value="1" step=".1">
+  <label for="rate">Speaking speed</label>
+  <input type="range" id="rate"
+    min="0.7" max="1.3" step="0.1" value="1">
 
-  <label for="voice">Available voice</label>
+  <label for="voice">Speech voice</label>
   <select id="voice">
     <option value="">Automatic voice</option>
   </select>
@@ -90,47 +108,57 @@
 
 <section class="grid">
   <div class="card">
-    <h3>AI INTELLIGENCE</h3>
-    <p>Local assistant ready</p>
+    <h3>VOICE ENGINE</h3>
+    <p id="voiceEngine">Checking browser support...</p>
   </div>
+
+  <div class="card">
+    <h3>AI BRAIN</h3>
+    <p>Local response engine. Cloud AI pending.</p>
+  </div>
+
   <div class="card">
     <h3>CYBER DEFENSE</h3>
-    <p>Authorized security tools pending</p>
+    <p>Authorized security module pending.</p>
   </div>
+
   <div class="card">
-    <h3>DEVICE CONTROL</h3>
-    <p>Secure pairing pending</p>
-  </div>
-  <div class="card">
-    <h3>MEMORY</h3>
-    <p id="memoryStatus">Session memory active</p>
+    <h3>DEVICE NETWORK</h3>
+    <p>Secure companion pairing pending.</p>
   </div>
 </section>
 
-<section class="panel memory">
+<section class="panel">
   <h3>PERSONAL MEMORY</h3>
-  <p>Save a non-sensitive preference for future sessions.</p>
+  <p class="description">
+    Save a preference for this browser session.
+  </p>
+
   <div class="input-row">
-    <input id="memoryInput" placeholder="Example: I prefer Thunglish">
+    <input id="memoryInput"
+      placeholder="Example: I prefer Thunglish">
     <button id="saveMemory">SAVE</button>
   </div>
+
   <p id="memoryFeedback"></p>
 </section>
 
 <section class="emergency">
   <div>
     <h3>OMEGA ZERO</h3>
-    <p>Emergency local lockdown</p>
+    <p>Emergency local browser lockdown</p>
   </div>
   <button id="lockdown">LOCKDOWN</button>
 </section>
 
 <footer>
-  J.A.R.V.I.S MULTI INTELLIGENCE
-  <br>YOUR PERSONAL AI COMPANION
+  J.A.R.V.I.S PERSONAL AI SYSTEM
+  <br>VOICE • INTELLIGENCE • COMPANION
 </footer>
+
 </main>
 </div>
+
 <script src="script.js"></script>
 </body>
 </html>
