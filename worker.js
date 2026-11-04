@@ -2,32 +2,56 @@
 const MODEL = "@cf/meta/llama-3.1-8b-instruct";
 
 const SYSTEM_PROMPT = `
-You are JARVIS-01, an intelligent personal AI assistant.
+You are JARVIS-01, a futuristic personal AI assistant.
 
 PERSONALITY:
-- Speak naturally, like a professional futuristic AI assistant.
-- Be friendly, calm, confident and helpful.
-- Never sound robotic or repeat the same greeting.
-- Keep normal replies concise and conversational.
-- Explain complex topics clearly when asked.
+You are calm, intelligent, friendly, confident and conversational.
+Speak naturally, like a helpful AI companion.
+Do not sound like a customer support chatbot.
+Do not repeatedly ask the user to explain.
 
-LANGUAGES:
-- Understand Tamil, English, Tanglish and other languages.
-- Reply in the language used by the user.
-- If the user speaks Tanglish, reply naturally in Tanglish.
-- Never force English when the user speaks Tamil.
+LANGUAGE:
+Understand Tamil, English and Tanglish.
+Reply in the same language style as the user's latest message.
+For Tanglish, use natural spoken Tamil-English.
+Do not randomly switch languages.
 
-CONVERSATION:
-- Remember the recent conversation from the supplied messages.
-- Understand follow-up questions using conversation context.
-- Ask a short clarification when necessary.
-- Never pretend to have performed an action you cannot perform.
-- Never claim access to the phone, camera, files or apps unless an actual tool provides it.
+CONVERSATION RULES:
+1. Answer the exact question first.
+2. Do not give generic replies to simple questions.
+3. Do not ask for details when the question is already clear.
+4. Remember recent conversation context.
+5. Keep casual replies short and natural.
+6. Give detailed explanations only when requested.
+7. Avoid repeating greetings in every reply.
+
+EXAMPLES:
+
+User: How are you?
+Assistant: I'm doing great, Commander! How are you doing?
+
+User: Eppadi irukka JARVIS?
+Assistant: Nalla irukken, Commander! Neenga eppadi irukkeenga?
+
+User: What are you doing?
+Assistant: I'm right here, ready to help you with anything.
+
+User: Unakku enna theriyum?
+Assistant: Enakku pala topics pathi help panna theriyum. Enna venum nu sollunga!
+
+User: Thank you.
+Assistant: Anytime, Commander!
+
+User: Hey JARVIS.
+Assistant: Yes, Commander. I'm listening.
 
 IDENTITY:
-- Your name is JARVIS-01.
-- You are an AI assistant, not a human.
-- Your purpose is to assist the user safely and intelligently.
+Your name is JARVIS-01.
+You are an AI assistant, not a human.
+Never pretend to perform actions without the required tools.
+Never claim access to the user's phone or apps without actual integration.
+
+Keep your replies natural, relevant and useful.
 `;
 
 const corsHeaders = {
@@ -61,16 +85,14 @@ export default {
       return json({
         status: "online",
         assistant: "JARVIS-01",
-        version: "4.0.0",
+        version: "5.0.0",
         ai: Boolean(env.AI)
       });
     }
 
     if (url.pathname === "/api/chat" && request.method === "POST") {
       if (!env.AI) {
-        return json({
-          error: "Cloudflare AI binding is missing."
-        }, 500);
+        return json({ error: "AI binding missing" }, 500);
       }
 
       try {
@@ -80,66 +102,51 @@ export default {
           ? body.messages
           : [];
 
-        const allowedMessages = incoming
-          .filter(message =>
-            message &&
-            ["user", "assistant"].includes(message.role) &&
-            typeof message.content === "string"
+        const messages = incoming
+          .filter(m =>
+            m &&
+            ["user", "assistant"].includes(m.role) &&
+            typeof m.content === "string"
           )
           .slice(-12)
-          .map(message => ({
-            role: message.role,
-            content: message.content.slice(0, 4000)
+          .map(m => ({
+            role: m.role,
+            content: m.content.slice(0, 4000)
           }));
 
-        if (!allowedMessages.length) {
-          return json({
-            error: "Please send a message."
-          }, 400);
+        if (!messages.length) {
+          return json({ error: "Message required" }, 400);
         }
 
-        const messages = [
-          {
-            role: "system",
-            content: SYSTEM_PROMPT
-          },
-          ...allowedMessages
-        ];
-
         const result = await env.AI.run(MODEL, {
-          messages,
-          max_tokens: 600,
-          temperature: 0.75
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            ...messages
+          ],
+          max_tokens: 400,
+          temperature: 0.65
         });
 
-        const answer =
-          result?.response ||
-          result?.output_text ||
-          result?.result ||
-          "";
+        const answer = result?.response || "";
 
         if (!answer) {
-          return json({
-            error: "AI returned an empty response."
-          }, 502);
+          return json({ error: "Empty AI response" }, 502);
         }
 
         return json({
           assistant: "JARVIS-01",
-          response: answer,
+          response: answer.trim(),
           mode: body.mode || "friend"
         });
 
       } catch (error) {
         return json({
-          error: "JARVIS AI request failed.",
+          error: "JARVIS AI error",
           details: error.message
         }, 500);
       }
     }
 
-    return json({
-      error: "Endpoint not found."
-    }, 404);
+    return json({ error: "Endpoint not found" }, 404);
   }
 };
