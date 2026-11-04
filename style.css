@@ -1,8 +1,8 @@
 
 * {
-  box-sizing: border-box;
   margin: 0;
   padding: 0;
+  box-sizing: border-box;
 }
 
 :root {
@@ -15,26 +15,27 @@
 }
 
 body {
-  background:
-    radial-gradient(ellipse at 50% 10%, #12375b, transparent 55%),
-    var(--bg);
-  color: var(--text);
-  font-family: Arial, sans-serif;
   min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(ellipse at 50% 5%, #12375b, transparent 55%),
+    var(--bg);
+  font-family: Arial, sans-serif;
 }
 
 .app {
   max-width: 1100px;
-  padding: 20px;
+  padding: 18px;
   margin: auto;
 }
 
 .topbar {
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
   padding-bottom: 18px;
   border-bottom: 1px solid #1b3851;
+  gap: 10px;
 }
 
 .brand {
@@ -57,6 +58,7 @@ body {
 
 .brand h2 {
   letter-spacing: 3px;
+  font-size: 18px;
 }
 
 .brand small {
@@ -66,17 +68,17 @@ body {
 }
 
 .online {
-  font-size: 10px;
-  letter-spacing: 2px;
   color: #00ff9d;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
 .online i {
   display: inline-block;
   width: 8px;
   height: 8px;
-  background: #00ff9d;
   border-radius: 50%;
+  background: #00ff9d;
   box-shadow: 0 0 10px #00ff9d;
 }
 
@@ -88,12 +90,12 @@ body {
 .eyebrow {
   color: var(--cyan);
   font-size: 10px;
-  letter-spacing: 5px;
+  letter-spacing: 4px;
 }
 
 .hero h1 {
-  font-size: clamp(27px, 5vw, 48px);
-  margin: 16px 0 9px;
+  font-size: clamp(26px, 5vw, 48px);
+  margin: 17px 0 9px;
 }
 
 .hero h1 span {
@@ -112,6 +114,7 @@ body {
   position: relative;
   display: grid;
   place-items: center;
+  transition: .3s;
 }
 
 .ring {
@@ -166,22 +169,24 @@ body {
 #voiceStatus {
   font-size: 10px;
   color: var(--cyan);
-  letter-spacing: 3px;
-  margin-bottom: 16px;
-}
-
-button {
-  cursor: pointer;
-  font-weight: bold;
-  border: none;
+  letter-spacing: 2px;
+  margin: 10px 0 16px;
 }
 
 .main-btn {
   color: white;
-  padding: 15px 27px;
+  padding: 15px 23px;
   border-radius: 8px;
   background: linear-gradient(100deg, #087fff, #00cfff);
   box-shadow: 0 0 20px #00aaff44;
+  font-weight: bold;
+  border: none;
+  cursor: pointer;
+}
+
+.hint {
+  margin-top: 13px;
+  font-size: 11px !important;
 }
 
 .panel, .card {
@@ -205,12 +210,12 @@ button {
 }
 
 .heading span {
-  font-size: 9px;
   color: var(--cyan);
+  font-size: 9px;
 }
 
 .chat {
-  height: 190px;
+  height: 210px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -219,11 +224,11 @@ button {
 }
 
 .message {
+  max-width: 90%;
   padding: 12px;
   border-radius: 8px;
   font-size: 13px;
   line-height: 1.6;
-  max-width: 90%;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -260,6 +265,8 @@ button {
   color: white;
   padding: 0 18px;
   border-radius: 7px;
+  border: none;
+  cursor: pointer;
 }
 
 .mode-grid {
@@ -276,6 +283,7 @@ button {
   background: #0a1b2d;
   color: var(--text);
   line-height: 2;
+  cursor: pointer;
 }
 
 .mode.active {
@@ -311,18 +319,20 @@ button {
   margin-bottom: 12px;
 }
 
-.card p, .memory p {
+.card p, .description {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.6;
 }
 
-.memory > p {
+.description {
   margin: 12px 0;
 }
 
 #memoryFeedback {
   color: var(--cyan);
+  margin-top: 12px;
+  font-size: 12px;
 }
 
 .emergency {
@@ -352,6 +362,13 @@ button {
   color: white;
   border-radius: 7px;
   padding: 13px;
+  border: none;
+  cursor: pointer;
+}
+
+button:disabled, input:disabled, select:disabled {
+  opacity: .45;
+  cursor: not-allowed;
 }
 
 footer {
@@ -376,5 +393,8 @@ body.locked .reactor {
   .app { padding: 13px; }
   .brand small { font-size: 7px; }
   .mode { font-size: 11px; }
-  .emergency { flex-direction: column; align-items: stretch; }
+  .emergency {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
