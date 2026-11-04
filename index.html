@@ -2,141 +2,135 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#050b18">
-  <meta name="description" content="JARVIS - Personal multilingual AI voice assistant">
-  <title>J.A.R.V.I.S — AI Assistant</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#050b16">
+<title>JARVIS | Personal AI</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
+<div class="app">
 
-  <header class="topbar">
-    <div class="brand">
-      <div class="brand-icon">J</div>
-      <div>
-        <h1>J.A.R.V.I.S</h1>
-        <span>PERSONAL AI SYSTEM</span>
-      </div>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">J</div>
+    <div>
+      <h2>J.A.R.V.I.S</h2>
+      <small>MULTI INTELLIGENCE AI</small>
     </div>
-    <div class="system-state">
-      <span class="status-dot"></span>
-      <span id="systemStatus">SYSTEM READY</span>
+  </div>
+  <div class="online"><i></i> ONLINE</div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="eyebrow">PERSONAL AI COMPANION</div>
+  <h1>HELLO, <span>COMMANDER.</span></h1>
+  <p>Your intelligent personal companion</p>
+
+  <div class="reactor" id="reactor">
+    <div class="ring r1"></div>
+    <div class="ring r2"></div>
+    <div class="ring r3"></div>
+    <div class="core">J</div>
+  </div>
+
+  <div id="voiceStatus">AWAITING YOUR COMMAND</div>
+  <button id="listen" class="main-btn">🎙 TALK TO JARVIS</button>
+</section>
+
+<section class="panel">
+  <div class="heading">
+    <h3>CONVERSATION</h3>
+    <span id="modeLabel">BEST FRIEND MODE</span>
+  </div>
+
+  <div class="chat" id="chat" aria-live="polite">
+    <div class="message jarvis">
+      Hey! Naan JARVIS. Enna solla pora? 
+      Innaiku enna pannalam?
     </div>
-    <button class="icon-button" id="settingsButton" title="Settings">⚙</button>
-  </header>
+  </div>
 
-  <main class="dashboard">
-    <section class="hero">
-      <div class="eyebrow">NEURAL INTERFACE / VERSION 1.0</div>
-      <h2>Good day, <span>Commander.</span></h2>
-      <p>Your personal intelligence system is ready.</p>
-    </section>
+  <div class="input-row">
+    <input id="command" placeholder="Talk to your JARVIS...">
+    <button id="send">➤</button>
+  </div>
+</section>
 
-    <section class="core-panel">
-      <div class="core-top">
-        <span>NEURAL CORE</span>
-        <span id="coreStatus">STANDBY</span>
-      </div>
-      <button class="reactor-button" id="micButton" aria-label="Start voice input">
-        <div class="reactor-ring ring-one"></div>
-        <div class="reactor-ring ring-two"></div>
-        <div class="reactor-ring ring-three"></div>
-        <div class="reactor-center">
-          <span class="mic-symbol">🎙</span>
-          <small id="coreLabel">TAP TO SPEAK</small>
-        </div>
-      </button>
-      <div class="core-caption" id="coreCaption">Awaiting your command</div>
-      <div class="core-metrics">
-        <div><strong id="clock">--:--:--</strong><small>LOCAL TIME</small></div>
-        <div><strong id="date">---</strong><small>DATE</small></div>
-        <div><strong id="connectionState">OFFLINE</strong><small>AI LINK</small></div>
-      </div>
-    </section>
+<section class="panel modes">
+  <h3>PERSONALITY MODES</h3>
+  <div class="mode-grid">
+    <button data-mode="friend" class="mode active">❤️<br>BEST FRIEND</button>
+    <button data-mode="professional" class="mode">🧠<br>PROFESSIONAL</button>
+    <button data-mode="funny" class="mode">😂<br>FUNNY</button>
+    <button data-mode="motivation" class="mode">⚡<br>MOTIVATION</button>
+  </div>
+</section>
 
-    <section class="workspace">
-      <div class="chat-panel">
-        <div class="panel-heading">
-          <div>
-            <span class="eyebrow">COMMUNICATION</span>
-            <h3>Conversation</h3>
-          </div>
-          <button class="text-button" id="clearButton">CLEAR</button>
-        </div>
+<section class="panel settings">
+  <h3>VOICE CUSTOMIZATION</h3>
 
-        <div class="chat-messages" id="chatBox" aria-live="polite">
-          <div class="message assistant-message">
-            <div class="avatar">J</div>
-            <div class="bubble">
-              <span class="message-name">JARVIS</span>
-              <p>Systems initialized. Vanakkam! How can I assist you today?</p>
-              <time>NOW</time>
-            </div>
-          </div>
-        </div>
+  <label for="language">Language</label>
+  <select id="language">
+    <option value="en-IN">English India</option>
+    <option value="ta-IN">Tamil</option>
+    <option value="en-US">English US</option>
+  </select>
 
-        <div class="typing" id="typingIndicator" hidden>
-          <span></span><span></span><span></span>
-          <small>JARVIS IS THINKING</small>
-        </div>
+  <label for="rate">Voice speed</label>
+  <input type="range" id="rate" min=".7" max="1.3"
+  value="1" step=".1">
 
-        <form class="composer" id="chatForm">
-          <input id="userInput" type="text"
-            placeholder="Ask JARVIS anything..."
-            autocomplete="off" maxlength="2000">
-          <button type="submit" id="sendButton">SEND ↗</button>
-        </form>
-      </div>
+  <label for="voice">Available voice</label>
+  <select id="voice">
+    <option value="">Automatic voice</option>
+  </select>
+</section>
 
-      <aside class="side-panel">
-        <div class="panel-card">
-          <span class="eyebrow">VOICE ENGINE</span>
-          <h3>Audio controls</h3>
-          <label class="setting-row">
-            <span>Auto speak replies</span>
-            <input type="checkbox" id="autoSpeak" checked>
-          </label>
-          <label class="setting-row">
-            <span>Voice output</span>
-            <input type="checkbox" id="voiceEnabled" checked>
-          </label>
-          <button class="wide-button" id="stopButton">STOP SPEAKING</button>
-        </div>
+<section class="grid">
+  <div class="card">
+    <h3>AI INTELLIGENCE</h3>
+    <p>Local assistant ready</p>
+  </div>
+  <div class="card">
+    <h3>CYBER DEFENSE</h3>
+    <p>Authorized security tools pending</p>
+  </div>
+  <div class="card">
+    <h3>DEVICE CONTROL</h3>
+    <p>Secure pairing pending</p>
+  </div>
+  <div class="card">
+    <h3>MEMORY</h3>
+    <p id="memoryStatus">Session memory active</p>
+  </div>
+</section>
 
-        <div class="panel-card">
-          <span class="eyebrow">LANGUAGE ENGINE</span>
-          <h3>Voice language</h3>
-          <select id="languageSelect">
-            <option value="en-IN">English (India)</option>
-            <option value="ta-IN">Tamil</option>
-            <option value="hi-IN">Hindi</option>
-            <option value="en-US">English (US)</option>
-            <option value="auto">Auto / Thunglish text</option>
-          </select>
-          <p class="hint">Thunglish typed messages are supported. Voice recognition depends on your browser and device.</p>
-        </div>
+<section class="panel memory">
+  <h3>PERSONAL MEMORY</h3>
+  <p>Save a non-sensitive preference for future sessions.</p>
+  <div class="input-row">
+    <input id="memoryInput" placeholder="Example: I prefer Thunglish">
+    <button id="saveMemory">SAVE</button>
+  </div>
+  <p id="memoryFeedback"></p>
+</section>
 
-        <div class="panel-card quick-panel">
-          <span class="eyebrow">QUICK ACCESS</span>
-          <h3>Try asking</h3>
-          <button class="quick-command" data-prompt="Introduce yourself">Introduce yourself <span>↗</span></button>
-          <button class="quick-command" data-prompt="Explain artificial intelligence simply">Explain AI <span>↗</span></button>
-          <button class="quick-command" data-prompt="Tell me a fun fact">Fun fact <span>↗</span></button>
-          <button class="quick-command" data-prompt="Give me today's motivation">Motivation <span>↗</span></button>
-        </div>
-      </aside>
-    </section>
+<section class="emergency">
+  <div>
+    <h3>OMEGA ZERO</h3>
+    <p>Emergency local lockdown</p>
+  </div>
+  <button id="lockdown">LOCKDOWN</button>
+</section>
 
-    <footer>
-      <span>J.A.R.V.I.S PERSONAL AI</span>
-      <span>BUILT FOR LEARNING • POWERED BY AI</span>
-    </footer>
-  </main>
-
-  <div class="toast" id="toast" role="status"></div>
-  <script src="script.js"></script>
+<footer>
+  J.A.R.V.I.S MULTI INTELLIGENCE
+  <br>YOUR PERSONAL AI COMPANION
+</footer>
+</main>
+</div>
+<script src="script.js"></script>
 </body>
 </html>
