@@ -1,250 +1,545 @@
-const $ = (id) => document.getElementById(id);
 
-const state = {
+/* ==========================================
+   JARVIS-01 | NATURAL VOICE ENGINE
+   Free browser speech APIs
+========================================== */
+
+const $ = id => document.getElementById(id);
+
+const JARVIS = {
+  workerURL: localStorage.getItem("jarvis_worker_url") || "",
+  history: [],
+  recognition: null,
   listening: false,
+  micRunning: false,
   sleeping: false,
   speaking: false,
   busy: false,
   emergency: false,
-  history: [],
-  recognition: null,
-  requestController: null
+  restarting: false,
+  requestController: null,
+  voiceList: [],
+  voiceTimer: null
 };
 
-const synth = window.speechSynthesis;
 const SpeechRecognition =
-  window.SpeechRecognition || window.webkitSpeechRecognition;
+  window.SpeechRecognition ||
+  window.webkitSpeechRecognition;
 
-let workerURL = localStorage.getItem("jarvis_worker_url") || "";
+const synth = window.speechSynthesis;
+
+/* ---------- STATUS ---------- */
+
+function status(text) {
+  const element = $("status");
+  if (element) element.textContent = text;
+}
+
+/* ---------- CHAT DISPLAY ---------- */
 
 function addMessage(role, message) {
   const area = $("messages");
   if (!area) return;
 
-  const div = document.createElement("div");
-  div.className = `message ${role}`;
-  div.textContent = message;
-  area.appendChild(div);
+  const item = document.createElement("div");
+  item.className = `message ${role}`;
+  item.textContent = message;
+
+  area.appendChild(item);
   area.scrollTop = area.scrollHeight;
 }
 
-function setStatus(message) {
-  const el = $("status");
-  if (el) el.textContent = message;
+/* ---------- VOICE MANAGEMENT ---------- */
+
+function loadVoices() {
+  if (!synth) return;
+
+  JARVIS.voiceList = synth.getVoices();
+
+  const selector = $("voiceSelect");
+  if (!selector) return;
+
+  const previous = selector.value;
+  selector.innerHTML = "";
+
+  JARVIS.voiceList.forEach((voice, index) => {
+    const option = document.createElement("option");
+    option.value = String(index);
+    option.textContent = `${voice.name} (${voice.lang})`;
+    selector.appendChild(option);
+  });
+
+  if (
+    previous &&
+    [...selector.options].some(o => o.value === previous)
+  ) {
+    selector.value = previous;
+  }
 }
 
-function stopSpeech() {
-  synth.cancel();
-  state.speaking = false;
+if (synth) {
+  loadVoices();
+  synth.onvoiceschanged = loadVoices;
 }
 
-function speak(message) {
-  if (!message || state.emergency || state.sleeping) return;
+/* ---------- LANGUAGE DETECTION ---------- */
 
-  stopSpeech();
+function detectLanguage(text) {
+  // Tamil script
+  if (/[\u0B80-\u0BFF]/.test(text)) {
+    return "ta-IN";
+  }
 
-  const utterance = new SpeechSynthesisUtterance(message);
-  const voices = synth.getVoices();
+  // Common Tanglish words
+  const tanglishWords =
+    /\b(naan|neenga|irukka|irukku|epdi|enna|sollu|sollunga|seri|illa|vanakkam|pannu|pannunga|saptiya|epadi)\b/i;
 
-  const preferred =
-    voices.find(v => /en-IN/i.test(v.lang)) ||
-    voices.find(v => /en-US/i.test(v.lang)) ||
-    voices.find(v => /en-GB/i.test(v.lang));
+  if (tanglishWords.test(text)) {
+    return "ta-IN";
+  }
 
-  if (preferred) utterance.voice = preferred;
-
-  utterance.rate = Number($("voiceSpeed")?.value || 0.95);
-  utterance.pitch = 1;
-  utterance.volume = 1;
-
-  utterance.onstart = () => {
-    state.speaking = true;
-    setStatus("JARVIS speaking...");
-  };
-
-  utterance.onend = () => {
-    state.speaking = false;
-    setStatus(state.sleeping ? "Sleeping" : "Ready");
-  };
-
-  utterance.onerror = () => {
-    state.speaking = false;
-    setStatus("Voice unavailable");
-  };
-
-  synth.speak(utterance);
+  return "en-IN";
 }
+
+/* ---------- NATURAL VOICE SELECTION ---------- */
+
+function selectVoice(language) {
+  const voices = JARVIS.voiceList;
+
+  if (!voices.length) return null;
+
+  const preferredIndex = $("voiceSelect")?.value;
+
+  if (
+    preferredIndex !== undefined &&
+    preferredIndex !== "" &&
+    voices[Number(preferredIndex)]
+  ) {
+    return voices[Number(preferredIndex)];
+  }
+
+  const matching = voices.filter(v =>
+    v.lang.toLowerCase().startsWith(
+      language.toLowerCase().slice(0, 2)
+    )
+  );
+
+  if (!matching.length) {
+    return voices.find(v => v.lang === "en-IN") ||
+      voices.find(v => v.lang.startsWith("en")) ||
+      voices[0];
+  }
+
+  const preferredNames = [
+    /google/i,
+    /natural/i,
+    /neural/i,
+    /premium/i
+  ];
+
+  for (const pattern of preferredNames) {
+    const match = matching.find(v =>
+      pattern.test(v.name)
+    );
+    if (match) return match;
+  }
+
+  return matching[0];
+}
+
+/* ---------- MICROPHONE CONTROL ---------- */
+
+function pauseMicrophone() {
+  if (JARVIS.recognition && JARVIS.micRunning) {
+    try {
+      JARVIS.recognition.stop();
+    } catch (_) {}
+  }
+}
+
+function resumeMicrophone() {
+  if (
+    !JARVIS.listening ||
+    JARVIS.sleeping ||
+    JARVIS.emergency ||
+    JARVIS.speaking ||
+    JARVIS.busy ||
+    !JARVIS.recognition ||
+    JARVIS.micRunning ||
+    JARVIS.restarting
+  ) return;
+
+  JARVIS.restarting = true;
+
+  setTimeout(() => {
+    JARVIS.restarting = false;
+
+    if (
+      !JARVIS.listening ||
+      JARVIS.sleeping ||
+      JARVIS.emergency ||
+      JARVIS.speaking ||
+      JARVIS.busy ||
+      JARVIS.micRunning
+    ) return;
+
+    try {
+      JARVIS.recognition.start();
+    } catch (_) {}
+  }, 900);
+}
+
+/* ---------- SPEECH ENGINE ---------- */
+
+function cancelSpeech() {
+  if (synth) synth.cancel();
+  JARVIS.speaking = false;
+}
+
+function speakText(text, options = {}) {
+  if (!synth || !text) return;
+
+  if (JARVIS.emergency && !options.force) return;
+  if (JARVIS.sleeping && !options.force) return;
+
+  cancelSpeech();
+  pauseMicrophone();
+
+  const language = options.language ||
+    detectLanguage(text);
+
+  const voice = selectVoice(language);
+
+  // Keep replies in small natural sentence groups
+  const sentences = text
+    .replace(/\s+/g, " ")
+    .match(/[^.!?]+[.!?]*|[^.!?]+$/g) || [text];
+
+  const cleanSentences = sentences
+    .map(s => s.trim())
+    .filter(Boolean);
+
+  let index = 0;
+
+  function speakNext() {
+    if (index >= cleanSentences.length) {
+      JARVIS.speaking = false;
+      status(JARVIS.sleeping ? "Sleeping" : "Ready");
+      resumeMicrophone();
+      return;
+    }
+
+    if (JARVIS.emergency) {
+      JARVIS.speaking = false;
+      return;
+    }
+
+    const sentence = cleanSentences[index++];
+
+    const utterance =
+      new SpeechSynthesisUtterance(sentence);
+
+    if (voice) {
+      utterance.voice = voice;
+    }
+
+    utterance.lang = voice?.lang || language;
+
+    // Natural conversational starting values
+    const speed = Number($("voiceSpeed")?.value || 0.95);
+
+    utterance.rate = Math.min(1.15, Math.max(0.75, speed));
+    utterance.pitch = 1.0;
+    utterance.volume = 1;
+
+    utterance.onstart = () => {
+      JARVIS.speaking = true;
+      status("JARVIS speaking...");
+    };
+
+    utterance.onend = () => {
+      if (JARVIS.emergency) return;
+
+      // Short pause between sentences
+      setTimeout(speakNext, 250);
+    };
+
+    utterance.onerror = () => {
+      JARVIS.speaking = false;
+      status("Voice playback issue");
+      resumeMicrophone();
+    };
+
+    synth.speak(utterance);
+  }
+
+  JARVIS.speaking = true;
+  speakNext();
+}
+
+/* ---------- STOP COMMAND ---------- */
 
 function stopJARVIS() {
-  stopSpeech();
+  cancelSpeech();
 
-  if (state.requestController) {
-    state.requestController.abort();
-    state.requestController = null;
+  if (JARVIS.requestController) {
+    JARVIS.requestController.abort();
+    JARVIS.requestController = null;
   }
 
-  state.busy = false;
-  setStatus("Response stopped");
+  JARVIS.busy = false;
+
+  status("JARVIS stopped");
+  resumeMicrophone();
 }
+
+/* ---------- SLEEP MODE ---------- */
 
 function goToSleep() {
-  stopJARVIS();
-  state.sleeping = true;
-  setStatus("Sleeping — say Wake up JARVIS");
-  speak("Going to sleep.");
+  cancelSpeech();
+
+  JARVIS.sleeping = true;
+
+  status("Sleeping - say Wake up JARVIS");
+
+  speakText("Going to sleep. Call me when you need me.", {
+    force: true
+  });
 }
+
+/* ---------- WAKE MODE ---------- */
 
 function wakeJARVIS() {
-  state.sleeping = false;
-  state.emergency = false;
-  setStatus("JARVIS activated");
-  speak("I am online. How can I help you?");
+  JARVIS.sleeping = false;
+  JARVIS.emergency = false;
+
+  status("JARVIS activated");
+
+  speakText("I'm here. What can I do for you?", {
+    force: true
+  });
 }
+
+/* ---------- EMERGENCY STOP ---------- */
 
 function emergencyStop() {
-  state.emergency = true;
-  state.sleeping = true;
-  stopJARVIS();
+  JARVIS.emergency = true;
+  JARVIS.sleeping = true;
+  JARVIS.listening = false;
 
-  if (state.recognition) {
-    state.recognition.stop();
+  cancelSpeech();
+
+  if (JARVIS.requestController) {
+    JARVIS.requestController.abort();
+    JARVIS.requestController = null;
   }
 
-  state.listening = false;
-  setStatus("Emergency stop activated");
+  JARVIS.busy = false;
+
+  if (JARVIS.recognition) {
+    try {
+      JARVIS.recognition.stop();
+    } catch (_) {}
+  }
+
+  JARVIS.micRunning = false;
+
+  status("Emergency stop activated");
 }
 
-function normalize(text) {
-  return text.toLowerCase().trim().replace(/[.,!?]/g, "");
-}
+/* ---------- VOICE COMMANDS ---------- */
 
-function handleVoice(text) {
-  const command = normalize(text);
+function handleVoice(rawText) {
+  const text = rawText.trim();
+  const lower = text.toLowerCase();
 
-  if (command.includes("stop jarvis")) {
+  if (!text) return;
+
+  if (/\bstop jarvis\b/i.test(text)) {
     stopJARVIS();
     return;
   }
 
-  if (command.includes("go to sleep")) {
+  if (/\bgo to sleep\b/i.test(text)) {
     goToSleep();
     return;
   }
 
-  if (command.includes("wake up jarvis")) {
+  if (/\bwake up jarvis\b/i.test(text)) {
     wakeJARVIS();
     return;
   }
 
-  if (state.sleeping || state.emergency) {
-    if (command.includes("hey jarvis")) {
+  if (JARVIS.emergency || JARVIS.sleeping) {
+    if (/\bhey jarvis\b/i.test(text)) {
       wakeJARVIS();
     }
     return;
   }
 
-  if (!state.listening) return;
+  const wakePattern = /\b(hey|hi|hello)\s+jarvis\b/i;
 
-  if (command.includes("hey jarvis")) {
-    const request = command.replace("hey jarvis", "").trim();
+  if (wakePattern.test(text)) {
+    const command = text
+      .replace(wakePattern, "")
+      .trim();
 
-    if (request) {
-      sendMessage(request);
+    if (command) {
+      sendMessage(command);
     } else {
-      speak("Yes. I am listening.");
+      speakText("Yes, I'm listening.");
     }
-
     return;
   }
 
-  if (state.busy || state.speaking) return;
+  // Ignore accidental microphone echo while speaking
+  if (JARVIS.speaking || JARVIS.busy) return;
 
+  // Once hands-free mode is active, allow normal commands
   sendMessage(text);
 }
 
+/* ---------- START LISTENING ---------- */
+
 function startListening() {
   if (!SpeechRecognition) {
-    setStatus("Speech recognition not supported. Try Chrome.");
+    status("Use Chrome browser for voice recognition");
     return;
   }
 
-  if (state.listening) return;
+  if (JARVIS.listening && !JARVIS.emergency) return;
 
-  state.emergency = false;
+  JARVIS.emergency = false;
+  JARVIS.sleeping = false;
+  JARVIS.listening = true;
 
   const recognition = new SpeechRecognition();
+
   recognition.lang = $("language")?.value || "en-IN";
   recognition.continuous = true;
   recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
 
   recognition.onstart = () => {
-    state.listening = true;
-    setStatus("Listening — say Hey JARVIS");
+    JARVIS.micRunning = true;
+    status("Listening - say Hey JARVIS");
   };
 
-  recognition.onresult = (event) => {
-    const result = event.results[event.results.length - 1];
-    if (result.isFinal) handleVoice(result[0].transcript);
-  };
+  recognition.onresult = event => {
+    const result =
+      event.results[event.results.length - 1];
 
-  recognition.onerror = (event) => {
-    setStatus("Microphone: " + event.error);
-  };
-
-  recognition.onend = () => {
-    state.listening = false;
-
-    if (!state.emergency) {
-      setTimeout(() => {
-        if (!state.emergency) startListening();
-      }, 700);
+    if (result.isFinal && !JARVIS.speaking) {
+      handleVoice(result[0].transcript);
     }
   };
 
-  state.recognition = recognition;
+  recognition.onerror = event => {
+    if (event.error === "not-allowed") {
+      JARVIS.listening = false;
+      status("Microphone permission denied");
+    } else if (event.error !== "no-speech") {
+      status("Microphone: " + event.error);
+    }
+  };
+
+  recognition.onend = () => {
+    JARVIS.micRunning = false;
+
+    if (JARVIS.listening && !JARVIS.emergency) {
+      resumeMicrophone();
+    }
+  };
+
+  JARVIS.recognition = recognition;
 
   try {
     recognition.start();
-  } catch (error) {
-    setStatus("Could not start microphone");
+  } catch (_) {
+    status("Microphone could not start");
   }
 }
 
-async function sendMessage(message) {
-  if (!message || state.busy) return;
+/* ---------- CONNECT CLOUDFLARE ---------- */
 
-  if (!workerURL) {
-    addMessage("jarvis", "Please connect your Cloudflare Worker first.");
+async function connectWorker() {
+  const input = $("workerUrl");
+  const url = input?.value.trim();
+
+  if (!url || !url.startsWith("https://")) {
+    status("Enter your HTTPS Worker URL");
     return;
   }
 
-  state.busy = true;
-  addMessage("user", message);
-  setStatus("Thinking...");
+  JARVIS.workerURL = url.replace(/\/$/, "");
 
-  state.history.push({
+  localStorage.setItem(
+    "jarvis_worker_url",
+    JARVIS.workerURL
+  );
+
+  try {
+    const response = await fetch(
+      JARVIS.workerURL + "/api/health"
+    );
+
+    if (!response.ok) throw new Error();
+
+    const data = await response.json();
+
+    if (data.status !== "online") throw new Error();
+
+    status("JARVIS AI connected");
+
+    speakText("System connection established.");
+  } catch (_) {
+    status("Connection failed. Check Worker URL.");
+  }
+}
+
+/* ---------- AI CHAT ---------- */
+
+async function sendMessage(message) {
+  if (!message || JARVIS.busy) return;
+
+  if (!JARVIS.workerURL) {
+    addMessage(
+      "jarvis",
+      "Please connect my Cloudflare Worker first."
+    );
+    return;
+  }
+
+  JARVIS.busy = true;
+
+  addMessage("user", message);
+  status("Thinking...");
+
+  JARVIS.history.push({
     role: "user",
     content: message
   });
 
-  state.requestController = new AbortController();
+  JARVIS.requestController = new AbortController();
 
   try {
     const response = await fetch(
-      workerURL.replace(/\/$/, "") + "/api/chat",
+      JARVIS.workerURL + "/api/chat",
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json"
+        },
         body: JSON.stringify({
-          messages: state.history.slice(-12),
+          messages: JARVIS.history.slice(-12),
           mode: $("mode")?.value || "friend"
         }),
-        signal: state.requestController.signal
+        signal: JARVIS.requestController.signal
       }
     );
 
     if (!response.ok) {
-      throw new Error("Server error: " + response.status);
+      throw new Error("AI server returned " + response.status);
     }
 
     const data = await response.json();
@@ -252,10 +547,9 @@ async function sendMessage(message) {
     const reply =
       data.response ||
       data.reply ||
-      data.result ||
-      "I could not generate a response.";
+      "I couldn't generate a response.";
 
-    state.history.push({
+    JARVIS.history.push({
       role: "assistant",
       content: reply
     });
@@ -263,70 +557,95 @@ async function sendMessage(message) {
     addMessage("jarvis", reply);
 
     if ($("autoSpeak")?.checked !== false) {
-      speak(reply);
+      speakText(reply);
     } else {
-      setStatus("Ready");
+      status("Ready");
+      resumeMicrophone();
     }
 
   } catch (error) {
     if (error.name !== "AbortError") {
-      addMessage("jarvis", "Connection issue. Please check your Worker URL.");
-      setStatus("Connection error");
+      addMessage(
+        "jarvis",
+        "I am having trouble connecting to my AI service. Please check the connection."
+      );
+      status("AI connection error");
     }
   } finally {
-    state.busy = false;
-    state.requestController = null;
+    JARVIS.busy = false;
+    JARVIS.requestController = null;
   }
 }
 
-async function connectWorker() {
-  const input = $("workerUrl");
-  const url = input?.value.trim();
+/* ---------- INTERFACE ---------- */
 
-  if (!url || !url.startsWith("https://")) {
-    setStatus("Enter a valid HTTPS Worker URL");
-    return;
+function initializeJARVIS() {
+  if ($("workerUrl")) {
+    $("workerUrl").value = JARVIS.workerURL;
   }
 
-  workerURL = url.replace(/\/$/, "");
-  localStorage.setItem("jarvis_worker_url", workerURL);
+  $("connectBtn")?.addEventListener(
+    "click",
+    connectWorker
+  );
 
-  try {
-    const response = await fetch(workerURL + "/api/health");
-    if (!response.ok) throw new Error();
+  $("startListening")?.addEventListener(
+    "click",
+    startListening
+  );
 
-    setStatus("JARVIS connected successfully");
-    speak("System connection established.");
-  } catch {
-    setStatus("Could not connect. Check Worker URL.");
-  }
-}
+  $("stopJarvis")?.addEventListener(
+    "click",
+    stopJARVIS
+  );
 
-function initialize() {
-  if ($("workerUrl")) $("workerUrl").value = workerURL;
+  $("sleepJarvis")?.addEventListener(
+    "click",
+    goToSleep
+  );
 
-  $("connectBtn")?.addEventListener("click", connectWorker);
-  $("startListening")?.addEventListener("click", startListening);
-  $("stopJarvis")?.addEventListener("click", stopJARVIS);
-  $("sleepJarvis")?.addEventListener("click", goToSleep);
-  $("wakeJarvis")?.addEventListener("click", wakeJARVIS);
-  $("emergencyStop")?.addEventListener("click", emergencyStop);
+  $("wakeJarvis")?.addEventListener(
+    "click",
+    wakeJARVIS
+  );
+
+  $("emergencyStop")?.addEventListener(
+    "click",
+    emergencyStop
+  );
 
   $("sendBtn")?.addEventListener("click", () => {
     const input = $("userInput");
-    if (input?.value.trim()) {
-      sendMessage(input.value.trim());
+    const value = input?.value.trim();
+
+    if (value) {
+      sendMessage(value);
       input.value = "";
     }
   });
 
   $("userInput")?.addEventListener("keydown", event => {
-    if (event.key === "Enter") $("sendBtn")?.click();
+    if (event.key === "Enter") {
+      $("sendBtn")?.click();
+    }
   });
 
-  if (synth) synth.getVoices();
+  $("continuous")?.addEventListener("change", event => {
+    if (event.target.checked) {
+      startListening();
+    } else {
+      JARVIS.listening = false;
+      pauseMicrophone();
+      status("Continuous listening disabled");
+    }
+  });
 
-  setStatus("JARVIS ready. Connect your Worker.");
+  loadVoices();
+
+  status("JARVIS-01 ready. Connect your AI.");
 }
 
-document.addEventListener("DOMContentLoaded", initialize);
+document.addEventListener(
+  "DOMContentLoaded",
+  initializeJARVIS
+);
